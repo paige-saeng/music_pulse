@@ -8,8 +8,6 @@ then run cluster_tracks() with that k for the actual assignment.
 import numpy as np
 from sklearn.cluster import KMeans
 
-from tag_features import CANONICAL_LABELS
-
 
 def find_optimal_k(feature_matrix, k_range=range(2, 9)):
     """Compute inertia for a range of k values so you can eyeball the elbow.
@@ -32,19 +30,19 @@ def cluster_tracks(feature_matrix, k):
     return labels, km.cluster_centers_
 
 
-def describe_clusters(cluster_centers):
-    """For each cluster center, name the top 2 mood dimensions that define it.
+def describe_clusters(cluster_centers, vocabulary, top_k=3):
+    """For each cluster center, name the top-k tags that define it.
 
-    This gives you a human-readable label like 'energetic + party' instead
-    of just 'cluster 3' -- run this once after clustering to build your
-    cluster_id -> label mapping.
+    vocabulary: the same tag list passed to build_feature_matrix, in the
+    same order -- needed to translate feature indices back into tag names.
+
+    This gives you a human-readable label like 'indie rock, alternative,
+    dream pop' instead of just 'cluster 3' -- run this once after
+    clustering to build your cluster_id -> label mapping.
     """
     descriptions = {}
     for cluster_id, center in enumerate(cluster_centers):
-        top_indices = np.argsort(center)[::-1][:2]
-        top_labels = [CANONICAL_LABELS[i] for i in top_indices if center[i] > 0.05]
-        if not top_labels:
-            descriptions[cluster_id] = "mixed/unclear"
-        else:
-            descriptions[cluster_id] = " + ".join(top_labels)
+        top_indices = np.argsort(center)[::-1][:top_k]
+        top_labels = [vocabulary[i] for i in top_indices if center[i] > 0.03]
+        descriptions[cluster_id] = ", ".join(top_labels) if top_labels else "mixed/unclear"
     return descriptions

@@ -33,6 +33,17 @@ def get_top_tracks_by_tag(tag, limit=50):
     return _parse_tracks(tracks)
 
 
+def get_top_tracks_by_country(country, limit=50):
+    """Top tracks for a specific country, e.g. 'United States', 'Japan'.
+
+    Country names must match Last.fm's expected format (standard English
+    country names work for most countries -- 'United States' not 'USA').
+    """
+    data = _get({"method": "geo.gettoptracks", "country": country, "limit": limit})
+    tracks = data.get("tracks", {}).get("track", [])
+    return _parse_tracks(tracks)
+
+
 def get_track_top_tags(artist, track):
     """Fetch user-applied tags for a single track, ordered by tag count.
 
