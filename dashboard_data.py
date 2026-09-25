@@ -8,6 +8,7 @@ dashboard.py imports these and wraps them with Streamlit display calls.
 """
 
 import pandas as pd
+import joblib
 
 import db
 
@@ -116,6 +117,7 @@ def get_headline_insights(selected_date):
             "SELECT DISTINCT snapshot_date FROM snapshots WHERE snapshot_date <= ? ORDER BY snapshot_date DESC LIMIT 2",
             conn, params=[selected_date]
         )
+
     insights = {"biggest_riser": None, "dominant_cluster": None, "both_charts_count": None}
 
     # --- Biggest riser: compare today's ranks to the most recent prior date ---
@@ -169,6 +171,63 @@ def get_headline_insights(selected_date):
         insights["both_charts_count"] = int((overlap_df["n_sources"] >= 2).sum())
 
     return insights
+
+
+MODEL_PATH = "breakout_model.joblib"
+
+
+def get_breakout_candidates(limit=15, already_top_n_threshold=20):
+    """Score today's currently-tracked tracks with the saved breakout model.
+
+    Excludes tracks already at or above already_top_n_threshold: the model
+    was trained to predict "will this track be in the top 20 within 5 days,"
+    which a track already sitting in the top 20 trivially satisfies without
+    climbing anywhere. A "breakout candidate" should mean a track outside
+    the threshold predicted to climb INTO it, not one already there --
+    filtering here fixes that mismatch between the label definition and
+    what this tab should actually show.
+
+    Returns (dataframe, error_message). error_message is None on success;
+    if non-None, the dataframe is empty and the message explains why
+    (no saved model yet, or no current-day feature rows to score) --
+    callers should show this message rather than a blank/broken table.
+    """
+    import os
+    if not os.path.exists(MODEL_PATH):
+        return pd.DataFrame(), (
+            "No trained model found yet. Run train_breakout_model.py first "
+            "to generate breakout_model.joblib."
+        )
+
+    import breakout_features
+    bundle = joblib.load(MODEL_PATH)
+    model, feature_cols = bundle["model"], bundle["feature_cols"]
+
+    all_features = breakout_features.build_feature_table()
+    if all_features.empty:
+        return pd.DataFrame(), "No feature data available yet."
+
+    latest_date = all_features["as_of_date"].max()
+    today_rows = all_features[all_features["as_of_date"] == latest_date].copy()
+
+    # Exclude tracks already in the top N -- they aren't "candidates",
+    # they've already arrived.
+    today_rows = today_rows[today_rows["current_rank"] > already_top_n_threshold]
+
+    if today_rows.empty:
+        return pd.DataFrame(), (
+            f"No tracks currently outside the top {already_top_n_threshold} to evaluate as candidates."
+        )
+
+    proba = model.predict_proba(today_rows[feature_cols])[:, 1]
+    today_rows["breakout_probability"] = proba
+
+    with db.get_connection() as conn:
+        track_names = pd.read_sql_query("SELECT track_id, artist, title FROM tracks", conn)
+
+    result = today_rows.merge(track_names, on="track_id")
+    result = result.sort_values("breakout_probability", ascending=False).head(limit)
+    return result[["artist", "title", "current_rank", "breakout_probability"]], None
 
 
 def get_overall_stats():

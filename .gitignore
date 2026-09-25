@@ -8,3 +8,4 @@ venv/
 .agents/
 .claude/
 ingest_log.txt
+breakout_model.joblib

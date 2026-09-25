@@ -7,10 +7,11 @@ Run this once a day (cron, Task Scheduler, or a simple loop) to build up
 history for the breakout-prediction model down the line.
 
 Usage:
-    export LASTFM_API_KEY=your_key_here
+    export LASTFM_API_KEY=94d7749a39b0002f0d7c887840801d3a
     python ingest.py
 """
 
+from curses import echo
 import time
 from datetime import date
 
@@ -101,3 +102,7 @@ def run_ingestion():
 
 if __name__ == "__main__":
     run_ingestion()
+
+
+
+

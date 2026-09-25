@@ -20,6 +20,7 @@ Usage:
 
 import pandas as pd
 import numpy as np
+import joblib
 from sklearn.linear_model import LogisticRegression
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import classification_report, roc_auc_score
@@ -30,6 +31,7 @@ FEATURE_COLS = [
     "acceleration", "volatility_14d", "days_tracked_so_far", "n_sources_today",
 ]
 TEST_FRACTION = 0.25  # most recent 25% of DATES (not rows) become the test set
+MODEL_PATH = "breakout_model.joblib"
 
 
 def load_labeled_data(path="breakout_features.csv"):
@@ -100,6 +102,22 @@ def main():
     print(importance.to_string())
     print("\nNote: current_rank dominating here is expected -- see EDA notebook, "
           "it's mechanically the strongest signal (closer to top-20 already).")
+
+    # --- Save a FINAL production model, refit on ALL labeled data ---
+    # The date-split model above exists purely to give an honest, unbiased
+    # evaluation (it never saw its own test dates during training). This
+    # final model is a separate fit -- same hyperparameters, but trained on
+    # every labeled row available, since a deployed model shouldn't throw
+    # away the most recent (and most relevant) dates just because they were
+    # held out for evaluation. Its own performance is not separately
+    # re-measured here; the numbers above are the honest estimate of how
+    # well this approach generalizes.
+    X_all, y_all = df[FEATURE_COLS], df["label"]
+    final_model = lgb.LGBMClassifier(random_state=42, verbose=-1)
+    final_model.fit(X_all, y_all)
+
+    joblib.dump({"model": final_model, "feature_cols": FEATURE_COLS}, MODEL_PATH)
+    print(f"\nSaved final production model (trained on all {len(df)} labeled rows) to {MODEL_PATH}")
 
 
 if __name__ == "__main__":
