@@ -76,6 +76,21 @@ header[data-testid="stHeader"] { background: transparent; }
 .mp-tile .val { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; line-height: 1.15; }
 .mp-tile .note { color: var(--muted); font-size: 0.9rem; margin-top: 2px; }
 
+/* ---- how it works + stats ---- */
+.mp-h2 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; margin: 2rem 0 0.8rem 0; }
+.mp-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 900px) { .mp-steps { grid-template-columns: 1fr; } }
+.mp-step { background: var(--card); border-radius: 16px; padding: 20px 22px; }
+.mp-step .t { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
+.mp-step .b { color: #e6e6e6; font-size: 0.95rem; line-height: 1.5; }
+.mp-step .m { color: var(--muted); font-size: 0.84rem; line-height: 1.5; margin-top: 12px;
+  padding-top: 12px; border-top: 1px solid var(--line); }
+.mp-step .m b { color: #fff; font-weight: 600; }
+.mp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+.mp-stat { background: var(--card); border-radius: 16px; padding: 16px 22px; }
+.mp-stat .n { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.mp-stat .l { color: var(--muted); font-size: 0.9rem; }
+
 /* ---- tabs as Spotify-style chips ---- */
 .stTabs [role="tablist"] { gap: 8px !important; border: 0 !important; border-bottom: 0 !important; box-shadow: none !important; margin-top: 18px; }
 .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"],
@@ -224,6 +239,42 @@ st.markdown(
 )
 
 # ---------------------------------------------------------------------------
+# How it works + data size (homepage, plain language first, method underneath)
+# ---------------------------------------------------------------------------
+st.markdown(
+    '<div class="mp-h2">How it works</div>'
+    '<div class="mp-steps">'
+    '<div class="mp-step"><div class="t">1. Collect</div>'
+    '<div class="b">Every day, the top 50 songs on Last.fm\'s global and US charts are saved, '
+    "so each song builds up a day-by-day record of where it ranked.</div>"
+    '<div class="m"><b>Method:</b> a daily scheduled job stores one snapshot per track, day and chart '
+    "in SQLite. Days when the job didn't run are tolerated downstream.</div></div>"
+
+    '<div class="mp-step"><div class="t">2. Group</div>'
+    '<div class="b">Songs are sorted into genre groups using the tags listeners give them. '
+    "The groups come from the data itself, not from a list I picked in advance.</div>"
+    '<div class="m"><b>Method:</b> tag vocabulary built from the data (top 40 tags used on 2+ tracks), '
+    "normalized tag vectors, k-means with k=4. The elbow plot was ambiguous, so k was chosen "
+    "for interpretability.</div></div>"
+
+    '<div class="mp-step"><div class="t">3. Predict</div>'
+    '<div class="b">For songs just outside the top 20, a model estimates how likely each one is to '
+    "break in within 5 days, based on how fast and how steadily it has been climbing.</div>"
+    '<div class="m"><b>Method:</b> logistic regression baseline and LightGBM on rank velocity, acceleration '
+    "and volatility, trained only on tracks starting outside the top 20 and evaluated on later dates "
+    "than it trained on (test ROC-AUC about 0.92 on 76 rows, 12 breakouts). Retrained by hand, "
+    "so scores slowly go stale.</div></div>"
+    "</div>"
+
+    '<div class="mp-stats">'
+    f'<div class="mp-stat"><div class="n">{stats["total_days"]:,}</div><div class="l">days of data collected</div></div>'
+    f'<div class="mp-stat"><div class="n">{stats["total_unique_tracks"]:,}</div><div class="l">different songs tracked</div></div>'
+    f'<div class="mp-stat"><div class="n">{stats["total_snapshots"]:,}</div><div class="l">daily chart entries saved</div></div>'
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs(["Trending", "Genres", "Track history", "Breakout watch"])
@@ -356,30 +407,3 @@ with tab4:
             "(under about 10 days) can score higher than they should.</div>",
             unsafe_allow_html=True,
         )
-
-# ---------------------------------------------------------------------------
-# Footer: how it works + pipeline stats, tucked away
-# ---------------------------------------------------------------------------
-st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-
-with st.expander("How this works"):
-    st.markdown(
-"""
-**Genre groups:** each day, tracks are pulled from Last.fm's global and US trending charts.
-Last.fm's tags turned out to be mostly genre-based rather than mood-based (an early
-assumption that didn't hold up against real data), so the vocabulary is built directly from
-the most common tags in the data and grouped with k-means.
-
-**Breakout watch:** a model estimates whether a track currently ranked 21 or lower will
-reach the top 20 within 5 days, using its rank trajectory (velocity, acceleration and
-volatility). It was evaluated on later dates than it trained on, so a track's future can't
-leak into its past. The model is retrained by hand (`train_breakout_model.py`), not
-automatically, so its scores slowly go stale until it is rerun.
-"""
-    )
-
-with st.expander("Pipeline stats"):
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Days tracked", stats["total_days"])
-    col2.metric("Unique tracks seen", stats["total_unique_tracks"])
-    col3.metric("Total snapshot rows", stats["total_snapshots"])
