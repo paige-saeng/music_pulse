@@ -466,7 +466,9 @@ METHOD_STAGES = [
 with tab5:
     st.markdown(
         '<div class="mp-h2" style="margin-top:0">Methodology</div>'
-        '<p class="mp-intro">How the data is collected, stored, grouped and modeled, built on the Last.fm API.</p>'
+        '<p class="mp-intro">How the data is collected, stored, grouped and modeled, built on the Last.fm API. '
+        'Rankings reflect Last.fm\'s listening community, which skews toward music enthusiasts and alternative genres, '
+        'not the Spotify or Apple Music charts.</p>'
         '<div class="mp-stats">'
         f'<div class="mp-stat"><div class="n">{stats["total_days"]:,}</div><div class="l">days of data collected</div></div>'
         f'<div class="mp-stat"><div class="n">{stats["total_unique_tracks"]:,}</div><div class="l">different songs tracked</div></div>'

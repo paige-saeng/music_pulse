@@ -53,6 +53,7 @@ This section shows how the project actually evolved, including what didn't work.
 
 ## Known limitations
 
+- **Last.fm's community, not all listeners.** Charts are built from scrobbles by Last.fm users, a smaller group that skews toward music enthusiasts and alternative genres. The rankings are not Spotify's or Apple Music's charts, so results describe Last.fm trends rather than mainstream streaming.
 - **Small data.** ~300 usable training rows, 12 test positives. The model is likely overconfident, especially for tracks with short chart histories (a track with 8 days on chart and falling can still score high).
 - **Rank features only.** The model sees rank movement, not tags or cluster membership yet. Adding genre cluster as a feature is the obvious next step.
 - **Simple retraining.** The model is retrained every Sunday by the same workflow. There is no performance tracking over time yet, so I can't yet show whether retraining helps.
