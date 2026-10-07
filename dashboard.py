@@ -222,7 +222,7 @@ if cluster:
     sound_tile = (
         '<div class="mp-tile"><div class="label">Dominant sound</div>'
         f'<div class="val">{escape(str(cluster["label"]))}</div>'
-        f'<div class="note">{cluster["count"]} of {cluster["total"]} tracked tracks</div></div>'
+        f'<div class="note">{cluster["count"]} of {cluster["total"]} songs with tags</div></div>'
     )
 else:
     sound_tile = '<div class="mp-tile"><div class="label">Dominant sound</div><div class="val">-</div></div>'
@@ -300,6 +300,10 @@ with tab1:
 # --- Tab 2: genre clusters ---
 with tab2:
     summary, detail = dd.get_cluster_summary_for_date(selected_date)
+    # Songs Last.fm hasn't tagged yet are stored as group 99. They aren't a genre,
+    # so keep them out of the chart and mention them in a footnote instead.
+    untagged_count = int(summary.loc[summary["cluster_id"] == 99, "track_count"].sum())
+    summary = summary[summary["cluster_id"] != 99]
     if summary.empty:
         st.info("No genre data for this date.")
     else:
@@ -327,6 +331,13 @@ with tab2:
                     ),
                     unsafe_allow_html=True,
                 )
+
+        if untagged_count:
+            st.markdown(
+                f'<div class="mp-note">{untagged_count} more songs charted on this date but aren\'t shown here '
+                "because Last.fm hasn't tagged them yet (mostly new releases).</div>",
+                unsafe_allow_html=True,
+            )
 
 # --- Tab 3: individual track history ---
 with tab3:

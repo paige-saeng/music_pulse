@@ -154,14 +154,14 @@ def get_headline_insights(selected_date):
     summary, _ = get_cluster_summary_for_date(selected_date)
     if not summary.empty:
         # The "No tags yet" bucket (id 99) isn't a sound, so it can't be the
-        # dominant one -- but it still counts toward the total.
+        # dominant one, and it isn't counted in the total either.
         real_groups = summary[summary["cluster_id"] != 99]
         if not real_groups.empty:
             top_cluster = real_groups.iloc[0]
             insights["dominant_cluster"] = {
                 "label": top_cluster["cluster_label"],
                 "count": int(top_cluster["track_count"]),
-                "total": int(summary["track_count"].sum()),
+                "total": int(real_groups["track_count"].sum()),  # tagged songs only
             }
 
     # --- Cross-chart overlap: how many tracks are in both global and US today ---
