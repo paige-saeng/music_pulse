@@ -9,6 +9,8 @@ Run with:
     streamlit run dashboard.py
 """
 
+from html import escape
+
 import streamlit as st
 import altair as alt
 
@@ -16,8 +18,158 @@ import dashboard_data as dd
 
 st.set_page_config(page_title="Music Pulse", page_icon="🎵", layout="wide")
 
-st.title("🎵 Music Pulse")
-st.caption("Daily trending-track tracking and genre clustering, built on Last.fm data.")
+# ---------------------------------------------------------------------------
+# Look and feel: Spotify-style dark surfaces + green accent.
+# Colors live in one place (CSS variables / the constants below).
+# ---------------------------------------------------------------------------
+GREEN = "#18A94D"        # chart green (validated against the dark surface)
+BLUE = "#4A90E2"         # second series
+MUTED = "#B3B3B3"
+GRID = "#2A2A2A"
+
+CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg: #121212;
+  --card: #181818;
+  --card-hover: #242424;
+  --line: #2a2a2a;
+  --text: #ffffff;
+  --muted: #b3b3b3;
+  --green: #1ed760;
+}
+
+html, body, [class*="css"], .stApp, button, input, textarea {
+  font-family: 'Figtree', 'Helvetica Neue', Arial, sans-serif !important;
+}
+.stApp { background: var(--bg); }
+#MainMenu, footer { visibility: hidden; }
+header[data-testid="stHeader"] { background: transparent; }
+.block-container { max-width: 1120px; padding-top: 2.5rem; padding-bottom: 4rem; }
+
+/* ---- page title ---- */
+.mp-title { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; margin: 0; line-height: 1.1; }
+.mp-title span { color: var(--green); }
+.mp-sub { color: var(--muted); margin: 0.35rem 0 1.5rem 0; font-size: 1rem; }
+
+/* ---- hero + stat tiles ---- */
+.mp-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 8px; }
+.mp-side { display: grid; grid-template-rows: 1fr 1fr; gap: 16px; }
+@media (max-width: 800px) { .mp-grid { grid-template-columns: 1fr; } }
+
+.mp-hero {
+  background: linear-gradient(155deg, #1f8f4a 0%, #14532d 48%, #181818 100%);
+  border-radius: 16px; padding: 28px 30px; min-height: 230px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.mp-hero .kicker { font-size: 0.95rem; font-weight: 600; color: #e8f5ec; margin-bottom: 6px; }
+.mp-hero .big { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.08; color: #fff; }
+.mp-hero .by { font-size: 1.1rem; color: #e8f5ec; margin-top: 4px; }
+.mp-hero .move { margin-top: 18px; font-size: 1.15rem; font-weight: 700; color: #fff; }
+.mp-hero .move em { font-style: normal; opacity: .75; font-weight: 600; margin: 0 8px; }
+
+.mp-tile { background: var(--card); border-radius: 16px; padding: 20px 22px;
+  display: flex; flex-direction: column; justify-content: center; }
+.mp-tile .label { color: var(--muted); font-size: 0.9rem; font-weight: 500; }
+.mp-tile .val { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; line-height: 1.15; }
+.mp-tile .note { color: var(--muted); font-size: 0.9rem; margin-top: 2px; }
+
+/* ---- tabs as Spotify-style chips ---- */
+.stTabs [role="tablist"] { gap: 8px !important; border: 0 !important; border-bottom: 0 !important; box-shadow: none !important; margin-top: 18px; }
+.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"],
+.stTabs [role="tablist"] > :not([role="tab"]) { display: none !important; height: 0 !important; }
+.stTabs [role="tablist"], .stTabs [role="tablist"] + div, [data-testid="stTabs"] > div:first-child { border-bottom: 0 !important; box-shadow: none !important; }
+.stTabs [role="tab"] {
+  background: #2a2a2a !important; color: #fff !important; border-radius: 999px !important;
+  height: 36px !important; padding: 0 18px !important; font-weight: 600; border: 0 !important;
+}
+.stTabs [class*="SelectionIndicator"] { display: none !important; }
+.stTabs [role="tablist"]::after, .stTabs [role="tablist"]::before { display: none !important; content: none !important; }
+.stTabs [role="tab"] p { font-size: 0.92rem; font-weight: 600; color: inherit !important; }
+.stTabs [role="tab"]:hover { background: #333 !important; }
+.stTabs [role="tab"][aria-selected="true"] { background: #fff !important; color: #000 !important; }
+.stTabs [data-baseweb="tab-panel"] { padding-top: 1.1rem; }
+
+/* ---- track rows ---- */
+.mp-list { background: transparent; max-height: 640px; overflow-y: auto; padding-right: 4px; }
+.mp-row { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 12px;
+  padding: 9px 12px; border-radius: 8px; }
+.mp-row:hover { background: var(--card-hover); }
+.mp-rank { color: var(--muted); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.mp-name { font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-artist { color: var(--muted); font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-meta { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.88rem; }
+.mp-chip { border: 1px solid #3a3a3a; color: var(--muted); border-radius: 999px; padding: 2px 10px; font-size: 0.78rem; }
+.mp-up { color: var(--green); font-weight: 700; }
+.mp-down { color: var(--muted); font-weight: 700; }
+.mp-pill { border-radius: 999px; padding: 3px 12px; font-size: 0.82rem; font-weight: 700; min-width: 64px; text-align: center; }
+.mp-pill.high { background: var(--green); color: #000; }
+.mp-pill.medium { background: transparent; color: var(--green); border: 1px solid var(--green); }
+.mp-pill.low { background: #2a2a2a; color: var(--muted); }
+
+/* ---- genre bars ---- */
+.mp-bar-row { display: grid; grid-template-columns: minmax(120px, 1fr) 3fr 40px; gap: 14px; align-items: center; padding: 8px 0; }
+.mp-bar-label { font-weight: 600; }
+.mp-bar-track { background: #232323; border-radius: 4px 4px 4px 4px; height: 10px; }
+.mp-bar-fill { background: var(--green); height: 10px; border-radius: 0 4px 4px 0; }
+.mp-bar-count { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---- misc ---- */
+.mp-section { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; margin: 0.4rem 0 0.6rem 0; }
+.mp-note { color: var(--muted); font-size: 0.88rem; margin-top: 14px; max-width: 70ch; }
+[data-testid="stExpander"] { background: var(--card); border: 0; border-radius: 12px; }
+[data-testid="stExpander"] summary { font-weight: 600; }
+.stSelectbox label, .stRadio label, .stTextInput label { color: var(--muted) !important; }
+</style>
+"""
+st.markdown(CSS, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# Small HTML helpers. Everything that comes from the database is escaped.
+# ---------------------------------------------------------------------------
+SOURCE_LABELS = {"lastfm_global": "Global", "lastfm_us": "US"}
+
+
+def track_rows_html(rows):
+    """rows: iterable of dicts with rank, title, artist, and optional meta_html."""
+    out = ['<div class="mp-list">']
+    for r in rows:
+        out.append(
+            '<div class="mp-row">'
+            f'<div class="mp-rank">{escape(str(r["rank"]))}</div>'
+            f'<div style="min-width:0"><div class="mp-name">{escape(str(r["title"]))}</div>'
+            f'<div class="mp-artist">{escape(str(r["artist"]))}</div></div>'
+            f'<div class="mp-meta">{r.get("meta_html", "")}</div>'
+            "</div>"
+        )
+    out.append("</div>")
+    return "".join(out)
+
+
+def style_chart(chart):
+    return (
+        chart.configure(background="transparent")
+        .configure_view(strokeWidth=0)
+        .configure_axis(
+            gridColor=GRID, domain=False, tickColor=GRID,
+            labelColor=MUTED, titleColor=MUTED, labelFontSize=12, titleFontSize=12,
+        )
+        .configure_legend(labelColor="#ffffff", titleColor=MUTED, orient="top", symbolType="stroke")
+    )
+
+
+# ---------------------------------------------------------------------------
+# Header
+# ---------------------------------------------------------------------------
+st.markdown(
+    '<h1 class="mp-title">Music <span>Pulse</span></h1>'
+    '<p class="mp-sub">What\'s trending on Last.fm today, which sounds it belongs to, '
+    "and which tracks look ready to break into the top 20.</p>",
+    unsafe_allow_html=True,
+)
 
 stats = dd.get_overall_stats()
 if stats["total_days"] == 0:
@@ -27,115 +179,107 @@ if stats["total_days"] == 0:
 available_dates = dd.get_available_dates()
 selected_date = st.selectbox("Date", available_dates, index=0)
 
-# --- Headline: the day's actual story, front and center ---
+# ---------------------------------------------------------------------------
+# Headline: the day's story -- one hero card + two supporting tiles
+# ---------------------------------------------------------------------------
 insights = dd.get_headline_insights(selected_date)
-
-st.subheader(f"What happened on {selected_date}")
-
 riser = insights["biggest_riser"]
 cluster = insights["dominant_cluster"]
 overlap = insights["both_charts_count"]
 
 if riser:
-    st.markdown(
-        f"**Biggest riser:** {riser['artist']} — \"{riser['title']}\" "
-        f"jumped from #{riser['from_rank']} to #{riser['to_rank']}."
+    hero = (
+        '<div class="mp-hero">'
+        '<div class="kicker">Biggest riser</div>'
+        f'<div class="big">{escape(str(riser["title"]))}</div>'
+        f'<div class="by">{escape(str(riser["artist"]))}</div>'
+        f'<div class="move">#{riser["from_rank"]}<em>to</em>#{riser["to_rank"]}</div>'
+        "</div>"
     )
 else:
-    st.markdown("**Biggest riser:** not enough prior-day data yet to compare.")
+    hero = (
+        '<div class="mp-hero"><div class="kicker">Biggest riser</div>'
+        '<div class="big">Not enough history yet</div>'
+        '<div class="by">Needs a prior day to compare against.</div></div>'
+    )
 
 if cluster:
-    st.markdown(
-        f"**Dominant sound today:** {cluster['label']} "
-        f"({cluster['count']} of {cluster['total']} tracked tracks)."
+    sound_tile = (
+        '<div class="mp-tile"><div class="label">Dominant sound</div>'
+        f'<div class="val">{escape(str(cluster["label"]))}</div>'
+        f'<div class="note">{cluster["count"]} of {cluster["total"]} tracked tracks</div></div>'
     )
+else:
+    sound_tile = '<div class="mp-tile"><div class="label">Dominant sound</div><div class="val">-</div></div>'
 
-if overlap is not None:
-    st.markdown(f"**Cross-chart overlap:** {overlap} tracks charted in both the global and US lists today.")
+overlap_tile = (
+    '<div class="mp-tile"><div class="label">On both charts</div>'
+    f'<div class="val">{overlap if overlap is not None else "-"} tracks</div>'
+    '<div class="note">Charting in both the global and US lists</div></div>'
+)
 
-st.divider()
+st.markdown(
+    f'<div class="mp-grid">{hero}<div class="mp-side">{sound_tile}{overlap_tile}</div></div>',
+    unsafe_allow_html=True,
+)
 
-with st.expander("How this works: the approach behind this dashboard"):
-    st.markdown(
-"""
-**Genre clustering (what you see above):** each day, tracks are pulled from Last.fm's
-global and US trending charts. Since Last.fm's tags turned out to be overwhelmingly
-genre-based rather than mood-based (an early assumption that didn't hold up against
-real data), the clustering vocabulary is built directly from that day's most common
-tags rather than a fixed list — then grouped with k-means into the clusters shown in
-the Genre Clusters tab.
+# ---------------------------------------------------------------------------
+# Tabs
+# ---------------------------------------------------------------------------
+tab1, tab2, tab3, tab4 = st.tabs(["Trending", "Genres", "Track history", "Breakout watch"])
 
-**Breakout prediction (in development, not yet shown live here):** a separate model
-predicts whether a track will reach the top 20 within 5 days, based on its rank
-trajectory — velocity, acceleration, and volatility computed from real accumulated
-history (gap-tolerant, since some days were missed during initial setup). A logistic
-regression baseline and a LightGBM model are trained on this data with a date-based
-train/test split, so the model is only ever evaluated on *future* dates it hasn't
-seen — not randomly held-out rows, which could leak a track's later trajectory into
-training. The trained model is saved and used to score currently-tracked tracks —
-see the Breakout Candidates tab. Note this reflects a single trained snapshot of
-the model; it isn't automatically retrained as new daily data arrives, so
-predictions will grow gradually more dated until it's retrained (rerun
-train_breakout_model.py periodically).
-"""
-    )
-
-st.divider()
-
-# --- Pipeline stats: still available, but as a minor footnote, not the headline ---
-with st.expander("Pipeline stats (days tracked, data volume)"):
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Days tracked", stats["total_days"])
-    col2.metric("Unique tracks seen", stats["total_unique_tracks"])
-    col3.metric("Total snapshot rows", stats["total_snapshots"])
-
-tab1, tab2, tab3, tab4 = st.tabs(["Today's Trending", "Genre Clusters", "Track History", "Breakout Candidates"])
-
-# --- Tab 1: Trending tracks table ---
+# --- Tab 1: today's chart as a track list ---
 with tab1:
     source_filter = st.radio("Chart", ["Both", "Global", "US"], horizontal=True)
     source_map = {"Both": None, "Global": "lastfm_global", "US": "lastfm_us"}
 
     top_tracks = dd.get_top_tracks_for_date(selected_date, source=source_map[source_filter], limit=50)
     if top_tracks.empty:
-        st.info("No tracks found for this date/filter combination.")
+        st.info("No tracks found for this date and chart.")
     else:
-        st.dataframe(
-            top_tracks.rename(columns={
-                "rank": "Rank", "artist": "Artist", "title": "Title", "source": "Chart"
-            }),
-            hide_index=True,
-            width='stretch',
-        )
+        rows = [
+            {
+                "rank": r["rank"], "title": r["title"], "artist": r["artist"],
+                "meta_html": f'<span class="mp-chip">{escape(SOURCE_LABELS.get(r["source"], str(r["source"])))}</span>',
+            }
+            for _, r in top_tracks.iterrows()
+        ]
+        st.markdown(track_rows_html(rows), unsafe_allow_html=True)
 
-# --- Tab 2: Genre cluster breakdown ---
+# --- Tab 2: genre clusters ---
 with tab2:
     summary, detail = dd.get_cluster_summary_for_date(selected_date)
     if summary.empty:
-        st.info("No cluster data available for this date.")
+        st.info("No genre data for this date.")
     else:
-        chart = alt.Chart(summary).mark_bar().encode(
-            x=alt.X("cluster_label:N", title="Cluster", sort="-y"),
-            y=alt.Y("track_count:Q", title="Number of tracks"),
-            tooltip=["cluster_label", "track_count"],
-        ).properties(height=350)
-        st.altair_chart(chart, width='stretch')
+        summary = summary.sort_values("track_count", ascending=False)
+        top = max(int(summary["track_count"].max()), 1)
+        bars = []
+        for _, r in summary.iterrows():
+            pct = 100 * int(r["track_count"]) / top
+            bars.append(
+                '<div class="mp-bar-row">'
+                f'<div class="mp-bar-label">{escape(str(r["cluster_label"]))}</div>'
+                f'<div class="mp-bar-track"><div class="mp-bar-fill" style="width:{pct:.0f}%"></div></div>'
+                f'<div class="mp-bar-count">{int(r["track_count"])}</div></div>'
+            )
+        st.markdown('<div class="mp-section">Tracks per genre group</div>' + "".join(bars), unsafe_allow_html=True)
 
-        st.subheader("Tracks by cluster")
+        st.markdown('<div class="mp-section" style="margin-top:1.4rem">Browse by group</div>', unsafe_allow_html=True)
         for _, row in summary.iterrows():
             with st.expander(f"{row['cluster_label']} ({row['track_count']} tracks)"):
-                cluster_tracks = detail[detail["cluster_id"] == row["cluster_id"]]
-                st.dataframe(
-                    cluster_tracks[["artist", "title"]].rename(
-                        columns={"artist": "Artist", "title": "Title"}
+                cluster_tracks = detail[detail["cluster_id"] == row["cluster_id"]].reset_index(drop=True)
+                st.markdown(
+                    track_rows_html(
+                        [{"rank": i + 1, "title": t["title"], "artist": t["artist"]}
+                         for i, t in cluster_tracks.iterrows()]
                     ),
-                    hide_index=True,
-                    width='stretch',
+                    unsafe_allow_html=True,
                 )
 
-# --- Tab 3: Individual track history ---
+# --- Tab 3: individual track history ---
 with tab3:
-    search_query = st.text_input("Search for a track (by artist or title)")
+    search_query = st.text_input("Search for a track by artist or title")
     if search_query:
         results = dd.search_tracks(search_query)
         if results.empty:
@@ -149,21 +293,32 @@ with tab3:
             if history.empty:
                 st.info("No history found for this track.")
             else:
-                chart = alt.Chart(history).mark_line(point=True).encode(
-                    x=alt.X("snapshot_date:T", title="Date"),
-                    y=alt.Y("rank:Q", title="Rank", scale=alt.Scale(reverse=True)),  # reversed: rank 1 at top
-                    color="source:N",
-                    tooltip=["snapshot_date:T", "rank:Q", "source:N"],
-                ).properties(height=350)
-                st.altair_chart(chart, width='stretch')
+                history = history.copy()
+                history["Chart"] = history["source"].map(SOURCE_LABELS).fillna(history["source"])
+                chart = alt.Chart(history).mark_line(point=alt.OverlayMarkDef(size=60, filled=True), strokeWidth=2).encode(
+                    x=alt.X("snapshot_date:T", title=None),
+                    y=alt.Y("rank:Q", title="Rank (1 is the top)", scale=alt.Scale(reverse=True)),
+                    color=alt.Color(
+                        "Chart:N", title=None,
+                        scale=alt.Scale(domain=["Global", "US"], range=[GREEN, BLUE]),
+                    ),
+                    strokeDash=alt.StrokeDash(
+                        "Chart:N", title=None,
+                        scale=alt.Scale(domain=["Global", "US"], range=[[1, 0], [6, 4]]),
+                    ),
+                    tooltip=["snapshot_date:T", "rank:Q", "Chart:N"],
+                ).properties(height=340)
+                st.altair_chart(style_chart(chart), width="stretch")
     else:
-        st.caption("Enter an artist or track name above to see its rank history over time.")
+        st.caption("Search for a track above to see how its rank has moved day by day.")
 
-# --- Tab 4: Breakout predictions from the saved model ---
+# --- Tab 4: breakout predictions from the saved model ---
 with tab4:
-    st.caption(
-        "Tracks currently trending, ranked by the model's predicted probability "
-        "of reaching the top 20 within 5 days."
+    st.markdown(
+        '<div class="mp-section">Tracks outside the top 20 that look ready to break in</div>'
+        '<div class="mp-sub" style="margin:0 0 .8rem 0">Ranked by the model\'s estimated chance of '
+        "reaching the top 20 within 5 days.</div>",
+        unsafe_allow_html=True,
     )
     candidates, error = dd.get_breakout_candidates()
     if error:
@@ -174,24 +329,57 @@ with tab4:
         def signal(p):
             return "High" if p >= 70 else "Medium" if p >= 40 else "Low"
 
-        candidates = candidates.copy()
-        candidates["signal"] = candidates["breakout_probability"].apply(signal)
-        display_df = candidates.rename(columns={
-            "artist": "Artist", "title": "Title", "current_rank": "Current Rank",
-            "spots_climbed_3d": "Spots climbed (3d)", "days_tracked_so_far": "Days on chart",
-            "signal": "Breakout signal",
-        })[["Artist", "Title", "Current Rank", "Spots climbed (3d)", "Days on chart", "Breakout signal"]]
-        st.dataframe(
-            display_df,
-            column_config={
-                "Spots climbed (3d)": st.column_config.NumberColumn(format="%+.0f"),
-            },
-            hide_index=True,
-            width='stretch',
+        rows = []
+        for _, r in candidates.iterrows():
+            climbed = r["spots_climbed_3d"]
+            if climbed != climbed:  # NaN: not enough history for a 3-day change
+                move = '<span class="mp-down">-</span>'
+            elif climbed >= 0:
+                move = f'<span class="mp-up">▲ {climbed:.0f}</span> in 3 days'
+            else:
+                move = f'<span class="mp-down">▼ {abs(climbed):.0f}</span> in 3 days'
+            sig = signal(r["breakout_probability"])
+            rows.append({
+                "rank": int(r["current_rank"]), "title": r["title"], "artist": r["artist"],
+                "meta_html": (
+                    f"<span>{move}</span>"
+                    f'<span>{int(r["days_tracked_so_far"])} days on chart</span>'
+                    f'<span class="mp-pill {sig.lower()}">{sig}</span>'
+                ),
+            })
+        st.markdown(track_rows_html(rows), unsafe_allow_html=True)
+        st.markdown(
+            '<div class="mp-note">The number on the left is the track\'s current rank. '
+            "High means a model score of 70% or more, Medium 40-70%, Low under 40%. "
+            "The model learned from about 300 examples, so read this as a ranking of who looks "
+            "most likely to break in, not exact odds. Tracks with short chart histories "
+            "(under about 10 days) can score higher than they should.</div>",
+            unsafe_allow_html=True,
         )
-        st.caption(
-            "Signal = High (model score 70%+), Medium (40-70%), Low (<40%). The model "
-            "was trained on ~300 examples, so read this as a ranking of who looks most "
-            "likely to break into the top 20, not as exact odds. Short chart histories "
-            "(e.g. under ~10 days) can produce overconfident scores."
-        )
+
+# ---------------------------------------------------------------------------
+# Footer: how it works + pipeline stats, tucked away
+# ---------------------------------------------------------------------------
+st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+
+with st.expander("How this works"):
+    st.markdown(
+"""
+**Genre groups:** each day, tracks are pulled from Last.fm's global and US trending charts.
+Last.fm's tags turned out to be mostly genre-based rather than mood-based (an early
+assumption that didn't hold up against real data), so the vocabulary is built directly from
+the most common tags in the data and grouped with k-means.
+
+**Breakout watch:** a model estimates whether a track currently ranked 21 or lower will
+reach the top 20 within 5 days, using its rank trajectory (velocity, acceleration and
+volatility). It was evaluated on later dates than it trained on, so a track's future can't
+leak into its past. The model is retrained by hand (`train_breakout_model.py`), not
+automatically, so its scores slowly go stale until it is rerun.
+"""
+    )
+
+with st.expander("Pipeline stats"):
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Days tracked", stats["total_days"])
+    col2.metric("Unique tracks seen", stats["total_unique_tracks"])
+    col3.metric("Total snapshot rows", stats["total_snapshots"])
