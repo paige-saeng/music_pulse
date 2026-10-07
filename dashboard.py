@@ -245,127 +245,6 @@ st.markdown(
 )
 
 # ---------------------------------------------------------------------------
-# Methodology (homepage): data engineering first, then the modeling
-# ---------------------------------------------------------------------------
-def stage(name, tools, lead, bullets):
-    items = "".join(f"<li>{b}</li>" for b in bullets)
-    return (
-        '<div class="mp-stage"><div>'
-        f'<div class="name">{name}</div><div class="tools">{tools}</div></div>'
-        f'<div><p class="lead">{lead}</p><ul>{items}</ul></div></div>'
-    )
-
-
-METHOD_STAGES = [
-    stage(
-        "1. Collection", "Last.fm API, requests, cron",
-        "Every day a scheduled job pulls the top 50 songs from two Last.fm charts and saves where each one ranked.",
-        [
-            "<b>Two sources.</b> The global chart (<code>chart.gettoptracks</code>) and the US chart "
-            "(<code>geo.gettoptracks</code>). Songs on both lists count once as a song but keep a row per chart, "
-            "so about 60 distinct songs make up roughly 100 entries a day.",
-            "<b>One record format.</b> Responses are normalized into artist, title, rank (from list position), "
-            "playcount and listeners, so every later step reads the same shape.",
-            "<b>Careful API use.</b> The key lives in an environment variable and never in the code or repo. "
-            "Requests time out after 10 seconds, HTTP errors raise instead of passing silently, and calls are spaced 0.25 seconds apart.",
-            "<b>Known limit.</b> The job runs from cron on my laptop, so it only fires when the laptop is awake. "
-            "That created gaps in the history (see below).",
-        ],
-    ),
-    stage(
-        "2. Storage", "SQLite",
-        "Everything lands in a small relational database built so that re-running a day never creates duplicates.",
-        [
-            "<b>Four tables.</b> <code>tracks</code> (one row per artist and title), <code>snapshots</code> "
-            "(one row per song, chart and day), <code>tags</code> and <code>clusters</code>.",
-            "<b>Idempotent writes.</b> A uniqueness constraint on song, date and chart plus insert-or-replace means "
-            "a second run on the same day overwrites instead of duplicating. Tags are replaced as a set each run, "
-            "and cluster assignments are keyed by song and run date so every day's grouping is kept.",
-            "<b>Raw first.</b> Only raw daily snapshots are stored. Features and labels are rebuilt from them on demand, "
-            "so a change to a feature definition never requires re-collecting data.",
-        ],
-    ),
-    stage(
-        "3. Tags", "Last.fm track.gettoptags",
-        "A song's sound comes from the tags listeners give it, because Spotify's audio features are closed to new apps.",
-        [
-            "<b>One request per distinct song</b>, deduplicated across both charts, with Last.fm's autocorrect on so "
-            "spelling variants of an artist or title resolve to the same track.",
-            "<b>Weighted tags.</b> Each tag carries a relative weight from Last.fm. Names are lowercased and trimmed before storing.",
-            "<b>API quirks handled.</b> A single tag comes back as an object instead of a list, counts can be missing or "
-            "malformed, and new releases often return no tags at all.",
-        ],
-    ),
-    stage(
-        "4. Genre groups", "pandas, NumPy, scikit-learn",
-        "Songs are grouped by how similar their tags are, using a vocabulary built from the data itself.",
-        [
-            "<b>Vocabulary from the data.</b> Count how many different songs use each tag, keep tags used by at least 2 songs "
-            "(this removes one-off noise like usernames and memes), and take the top 40. My first attempt used a hand-picked "
-            "mood list, and it matched only 1 of about 70 real tags, so I replaced it.",
-            "<b>Feature vectors.</b> Each song becomes 40 numbers, its weight on each vocabulary tag, scaled to sum to 1 "
-            "so heavily tagged songs don't dominate.",
-            "<b>Clustering.</b> k-means with k=4 and a fixed random seed. The elbow plot had no clear elbow (inertia fell "
-            "roughly linearly), so I picked k for interpretability. Each group is named after the three heaviest tags in its center.",
-            "<b>Untagged songs</b> are counted and reported separately instead of being forced into a group.",
-        ],
-    ),
-    stage(
-        "5. Breakout model", "pandas, scikit-learn, LightGBM",
-        "A model estimates which songs ranked 21st or lower will reach the top 20 within 5 days.",
-        [
-            "<b>Features</b> for each song and day: best rank across both charts, rank change over 1, 3 and 7 days, "
-            "acceleration, 14-day volatility, days on the chart and number of charts.",
-            "<b>Label.</b> Reached rank 20 or better within 5 days (give or take 1 day). Rows without enough future data stay "
-            "unlabeled instead of being counted as a miss.",
-            "<b>Evaluation.</b> Train on earlier dates, test on later ones, so a song's future never leaks into its past. "
-            "Logistic regression is the baseline; LightGBM handles missing values natively.",
-            "<b>Result.</b> Test ROC-AUC of 0.92 for LightGBM and 0.96 for logistic regression, on 76 held-out rows with "
-            "12 breakouts. That sample is too small to trust past the first decimal, so read it as a ranking, not exact odds.",
-        ],
-    ),
-    stage(
-        "6. Dashboard", "Streamlit, Altair",
-        "The app reads the database directly, so each daily run appears on the next page load.",
-        [
-            "<b>Model scores</b> come from a saved model file that I retrain by hand, so they drift out of date until it is rerun.",
-            "<b>Safe rendering.</b> Anything that comes from the database is HTML-escaped before it is displayed.",
-        ],
-    ),
-]
-
-METHOD_PROBLEMS = stage(
-    "Problems along the way", "What broke and what I changed",
-    "The pipeline looked fine until the data showed otherwise. These are the problems that mattered most.",
-    [
-        "<b>Missing days.</b> In the first month, 18 of 36 calendar days had no data because the laptop was asleep when the job "
-        "was due. Feature lookups now use the nearest available day within a tolerance window and leave a blank when none "
-        "exists, instead of assuming an unbroken daily series.",
-        "<b>Label leakage.</b> My first model treated songs already in the top 20 as breakouts, which inflated its score. "
-        "It now trains and is judged only on songs that start outside the top 20.",
-        "<b>Silent data loss.</b> Roughly 1 in 5 charting songs had no tags and was being dropped from the genre counts "
-        "without any warning. They are now tracked and called out on the Genres tab.",
-        "<b>A vocabulary that didn't fit.</b> The fixed mood list failed on real tags, which led to the data-driven vocabulary above.",
-        "<b>Scale.</b> About a month of data and roughly 300 training rows. Everything is reported as directional, and the model "
-        "should be rechecked as history grows.",
-    ],
-)
-
-st.markdown(
-    '<div class="mp-h2">Methodology</div>'
-    '<p class="mp-intro">How the data is collected, stored, grouped and modeled, built on the Last.fm API.</p>'
-    '<div class="mp-stats">'
-    f'<div class="mp-stat"><div class="n">{stats["total_days"]:,}</div><div class="l">days of data collected</div></div>'
-    f'<div class="mp-stat"><div class="n">{stats["total_unique_tracks"]:,}</div><div class="l">different songs tracked</div></div>'
-    f'<div class="mp-stat"><div class="n">{stats["total_snapshots"]:,}</div><div class="l">daily chart entries saved</div></div>'
-    '</div>'
-    '<div class="mp-flow"><span>Last.fm API</span><i>›</i><span>Python and cron</span><i>›</i>'
-    '<span>SQLite</span><i>›</i><span>scikit-learn, LightGBM</span><i>›</i><span>Streamlit</span></div>'
-    + "".join(METHOD_STAGES) + METHOD_PROBLEMS,
-    unsafe_allow_html=True,
-)
-
-# ---------------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs(["Trending", "Genres", "Track history", "Breakout watch"])
@@ -509,3 +388,86 @@ with tab4:
             "(under about 10 days) can score higher than they should.</div>",
             unsafe_allow_html=True,
         )
+
+
+# ---------------------------------------------------------------------------
+# Methodology: sits below the tabs, since most visitors want the music first
+# ---------------------------------------------------------------------------
+def stage(name, tools, lead, bullets):
+    items = "".join(f"<li>{b}</li>" for b in bullets)
+    return (
+        '<div class="mp-stage"><div>'
+        f'<div class="name">{name}</div><div class="tools">{tools}</div></div>'
+        f'<div><p class="lead">{lead}</p><ul>{items}</ul></div></div>'
+    )
+
+
+METHOD_STAGES = [
+    stage(
+        "1. Collection", "Last.fm API, requests, cron",
+        "A daily scheduled job pulls the top 50 songs from Last.fm's global and US charts.",
+        [
+            "Each song's rank, playcount and listeners are saved as a daily snapshot: about 100 entries a day across roughly 60 distinct songs.",
+            "The API key stays in an environment variable, and requests use timeouts and rate limiting so failures are loud, not silent.",
+        ],
+    ),
+    stage(
+        "2. Storage", "SQLite",
+        "A small relational database keeps the raw daily snapshots, tags and genre assignments.",
+        [
+            "Uniqueness constraints make reruns safe: running twice in a day updates the data instead of duplicating it.",
+            "Features and labels are rebuilt from the raw snapshots, so definitions can change without re-collecting anything.",
+        ],
+    ),
+    stage(
+        "3. Tags", "Last.fm track.gettoptags",
+        "A song's sound comes from the tags listeners give it, since Spotify's audio features are closed to new apps.",
+        [
+            "One request per distinct song, with autocorrect on, and tags cleaned and stored with their weights.",
+            "Songs with no tags yet, usually new releases, are tracked separately instead of being dropped.",
+        ],
+    ),
+    stage(
+        "4. Genre groups", "pandas, NumPy, scikit-learn",
+        "Songs are grouped by how similar their tags are, using a vocabulary built from the data itself.",
+        [
+            "The top 40 tags used on at least 2 songs form the vocabulary, and each song becomes a weighted tag vector. "
+            "A hand-picked mood list was tried first and matched almost nothing in real data.",
+            "k-means with k=4, chosen for interpretability because the elbow plot had no clear bend. "
+            "Each group is named after its heaviest tags.",
+        ],
+    ),
+    stage(
+        "5. Breakout model", "pandas, scikit-learn, LightGBM",
+        "A model estimates which songs ranked 21st or lower will reach the top 20 within 5 days.",
+        [
+            "Features describe rank movement: change over 1, 3 and 7 days, acceleration, volatility and time on the chart. "
+            "Days the collector missed are handled with nearest-day lookups.",
+            "Training and testing are split by date, so the future never leaks into the past, and use only songs that start outside the top 20.",
+            "Logistic regression and LightGBM reach a test ROC-AUC of about 0.92 to 0.96, but on a small sample "
+            "(76 rows, 12 breakouts), so scores are best read as a ranking, not exact odds.",
+        ],
+    ),
+    stage(
+        "6. Dashboard", "Streamlit, Altair",
+        "The app reads the database directly, so each daily run shows up on the next page load.",
+        [
+            "Model scores come from a saved model that is retrained by hand, so they drift out of date until it is rerun.",
+        ],
+    ),
+]
+
+st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+st.markdown(
+    '<div class="mp-h2">Methodology</div>'
+    '<p class="mp-intro">How the data is collected, stored, grouped and modeled, built on the Last.fm API.</p>'
+    '<div class="mp-stats">'
+    f'<div class="mp-stat"><div class="n">{stats["total_days"]:,}</div><div class="l">days of data collected</div></div>'
+    f'<div class="mp-stat"><div class="n">{stats["total_unique_tracks"]:,}</div><div class="l">different songs tracked</div></div>'
+    f'<div class="mp-stat"><div class="n">{stats["total_snapshots"]:,}</div><div class="l">daily chart entries saved</div></div>'
+    '</div>'
+    '<div class="mp-flow"><span>Last.fm API</span><i>›</i><span>Python and cron</span><i>›</i>'
+    '<span>SQLite</span><i>›</i><span>scikit-learn, LightGBM</span><i>›</i><span>Streamlit</span></div>'
+    + "".join(METHOD_STAGES),
+    unsafe_allow_html=True,
+)
