@@ -171,17 +171,27 @@ with tab4:
     elif candidates.empty:
         st.info("No candidates to show.")
     else:
+        def signal(p):
+            return "High" if p >= 70 else "Medium" if p >= 40 else "Low"
+
+        candidates = candidates.copy()
+        candidates["signal"] = candidates["breakout_probability"].apply(signal)
         display_df = candidates.rename(columns={
-            "artist": "Artist", "title": "Title",
-            "current_rank": "Current Rank", "breakout_probability": "Breakout Probability",
-        })
+            "artist": "Artist", "title": "Title", "current_rank": "Current Rank",
+            "spots_climbed_3d": "Spots climbed (3d)", "days_tracked_so_far": "Days on chart",
+            "signal": "Breakout signal",
+        })[["Artist", "Title", "Current Rank", "Spots climbed (3d)", "Days on chart", "Breakout signal"]]
         st.dataframe(
             display_df,
             column_config={
-                "Breakout Probability": st.column_config.ProgressColumn(
-                    "Breakout Probability", min_value=0, max_value=1, format="%.0f%%"
-                )
+                "Spots climbed (3d)": st.column_config.NumberColumn(format="%+.0f"),
             },
             hide_index=True,
             width='stretch',
+        )
+        st.caption(
+            "Signal = High (model score 70%+), Medium (40-70%), Low (<40%). The model "
+            "was trained on ~300 examples, so read this as a ranking of who looks most "
+            "likely to break into the top 20, not as exact odds. Short chart histories "
+            "(e.g. under ~10 days) can produce overconfident scores."
         )

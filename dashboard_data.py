@@ -227,7 +227,12 @@ def get_breakout_candidates(limit=15, already_top_n_threshold=20):
 
     result = today_rows.merge(track_names, on="track_id")
     result = result.sort_values("breakout_probability", ascending=False).head(limit)
-    return result[["artist", "title", "current_rank", "breakout_probability"]], None
+    # Context columns so the table explains itself: how far has each track
+    # already climbed, and how long has it been on the charts?
+    result["spots_climbed_3d"] = result["velocity_3d"] * 3  # velocity is per-day, positive = climbing
+    result["breakout_probability"] = result["breakout_probability"] * 100  # 0-1 -> percent for display
+    return result[["artist", "title", "current_rank", "spots_climbed_3d",
+                   "days_tracked_so_far", "breakout_probability"]], None
 
 
 def get_overall_stats():
