@@ -16,7 +16,7 @@ import altair as alt
 
 import dashboard_data as dd
 
-st.set_page_config(page_title="Music Pulse", page_icon="🎵", layout="wide")
+st.set_page_config(page_title="Music Pulse: Trending-Music Analytics Pipeline & Dashboard", page_icon="🎵", layout="wide")
 
 # ---------------------------------------------------------------------------
 # Look and feel: Spotify-style dark surfaces + sky-blue accent.
@@ -187,8 +187,8 @@ def style_chart(chart):
 # ---------------------------------------------------------------------------
 st.markdown(
     '<h1 class="mp-title">Music <span>Pulse</span></h1>'
-    '<p class="mp-sub">What\'s trending on Last.fm today, which sounds it belongs to, '
-    "and which tracks look ready to break into the top 20.</p>",
+    '<p class="mp-sub">A daily Last.fm trending-music dashboard: what\'s charting today, '
+    "which sounds it belongs to, and which tracks look ready to break into the top 20.</p>",
     unsafe_allow_html=True,
 )
 

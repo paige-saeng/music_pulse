@@ -1,4 +1,4 @@
-# 🎵 Music Pulse
+# 🎵 Music Pulse: Trending-Music Analytics Pipeline & Dashboard
 
 A daily-updating pipeline and dashboard that tracks what's trending on Last.fm, groups tracks into data-driven genre clusters, and predicts which tracks currently *outside* the top 20 are most likely to break into it within 5 days.
 
