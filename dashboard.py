@@ -9,8 +9,10 @@ Run with:
     streamlit run dashboard.py
 """
 
+import unicodedata
 from html import escape
 
+import requests
 import streamlit as st
 import altair as alt
 
@@ -62,8 +64,11 @@ header[data-testid="stHeader"] { background: transparent; }
 .mp-hero {
   background: linear-gradient(155deg, #9ad8fb 0%, #55aeee 55%, #2f80d0 100%);
   border-radius: 16px; padding: 28px 30px; min-height: 230px;
-  display: flex; flex-direction: column; justify-content: flex-end;
+  display: flex; flex-direction: column; justify-content: flex-end; position: relative;
 }
+.mp-hero .pic { position: absolute; top: 24px; right: 26px; width: 120px; height: 120px; border-radius: 50%;
+  object-fit: cover; border: 3px solid rgba(255,255,255,.65); box-shadow: 0 6px 18px rgba(5,23,38,.25); }
+@media (max-width: 800px) { .mp-hero .pic { width: 84px; height: 84px; top: 18px; right: 18px; } }
 .mp-hero .kicker { font-size: 0.95rem; font-weight: 600; color: #0b2a45; margin-bottom: 6px; }
 .mp-hero .big { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.08; color: #051726; }
 .mp-hero .by { font-size: 1.1rem; color: #0b2a45; margin-top: 4px; }
@@ -170,6 +175,35 @@ def track_rows_html(rows):
     return "".join(out)
 
 
+def _norm_name(name):
+    """Accent- and case-insensitive form of an artist name, for matching."""
+    stripped = "".join(c for c in unicodedata.normalize("NFKD", str(name)) if not unicodedata.combining(c))
+    return "".join(ch for ch in stripped.lower() if ch.isalnum())
+
+
+@st.cache_data(ttl=60 * 60 * 24 * 7, show_spinner=False)
+def get_artist_image(artist):
+    """Artist photo URL from Deezer's free public search API, or None.
+
+    Last.fm stopped serving real artist photos in 2019 (its API returns a
+    grey placeholder), so images come from Deezer instead. We only accept a
+    result whose name matches the artist after stripping accents and case,
+    so a lookup can never attach the wrong person's photo. Any network
+    problem returns None and the dashboard simply shows no picture.
+    """
+    try:
+        resp = requests.get("https://api.deezer.com/search/artist",
+                            params={"q": artist, "limit": 5}, timeout=5)
+        resp.raise_for_status()
+        for hit in resp.json().get("data", []):
+            if _norm_name(hit.get("name")) == _norm_name(artist):
+                return hit.get("picture_big") or hit.get("picture_medium")
+    except Exception:
+        return None
+    return None
+
+
+
 def style_chart(chart):
     return (
         chart.configure(background="transparent")
@@ -209,8 +243,11 @@ cluster = insights["dominant_cluster"]
 overlap = insights["both_charts_count"]
 
 if riser:
+    riser_img = get_artist_image(riser["artist"])
+    pic_html = f'<img class="pic" src="{escape(riser_img, quote=True)}" alt="">' if riser_img else ""
     hero = (
         '<div class="mp-hero">'
+        + pic_html +
         '<div class="kicker">Biggest riser</div>'
         f'<div class="big">{escape(str(riser["title"]))}</div>'
         f'<div class="by">{escape(str(riser["artist"]))}</div>'
@@ -328,6 +365,12 @@ with tab3:
         with col_b:
             choice = st.selectbox("Track", tracks["title"].tolist())
         chosen_id = tracks[tracks["title"] == choice]["track_id"].iloc[0]
+
+        img_col, name_col = st.columns([1, 7], vertical_alignment="center")
+        artist_img = get_artist_image(artist)
+        if artist_img:
+            img_col.image(artist_img, width=80)
+        name_col.markdown(f"**{escape(artist)}**  \n{escape(choice)}")
 
         history = dd.get_track_history(chosen_id)
         if history.empty:
