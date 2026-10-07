@@ -19,11 +19,11 @@ import dashboard_data as dd
 st.set_page_config(page_title="Music Pulse", page_icon="🎵", layout="wide")
 
 # ---------------------------------------------------------------------------
-# Look and feel: Spotify-style dark surfaces + green accent.
+# Look and feel: Spotify-style dark surfaces + sky-blue accent.
 # Colors live in one place (CSS variables / the constants below).
 # ---------------------------------------------------------------------------
-GREEN = "#18A94D"        # chart green (validated against the dark surface)
-BLUE = "#4A90E2"         # second series
+GREEN = "#4cb4ff"        # accent blue (Global series)
+BLUE = "#c9d6e8"         # second series (pale blue-grey, also dashed)
 MUTED = "#B3B3B3"
 GRID = "#2A2A2A"
 
@@ -38,7 +38,7 @@ CSS = """
   --line: #2a2a2a;
   --text: #ffffff;
   --muted: #b3b3b3;
-  --green: #1ed760;
+  --green: #4cb4ff;
 }
 
 html, body, [class*="css"], .stApp, button, input, textarea {
