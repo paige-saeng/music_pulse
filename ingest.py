@@ -12,7 +12,8 @@ Usage:
 """
 
 import time
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import db
 import lastfm_client
@@ -34,7 +35,10 @@ CHARTS = [
 
 
 def run_ingestion():
-    today = date.today().isoformat()
+    # Always label a run with the calendar date in Pacific time. The cloud job runs
+    # on UTC, which is already "tomorrow" in the evening here, so date.today()
+    # would stamp manual evening runs with the next day.
+    today = datetime.now(ZoneInfo("America/Los_Angeles")).date().isoformat()
     db.init_db()
 
     with db.get_connection() as conn:
