@@ -217,6 +217,12 @@ if riser:
         f'<div class="move">#{riser["from_rank"]}<em>to</em>#{riser["to_rank"]}</div>'
         "</div>"
     )
+elif insights.get("riser_status") == "no_climbers":
+    hero = (
+        '<div class="mp-hero"><div class="kicker">Biggest riser</div>'
+        '<div class="big">No climbers yet</div>'
+        '<div class="by">Every song held its rank since the last update.</div></div>'
+    )
 else:
     hero = (
         '<div class="mp-hero"><div class="kicker">Biggest riser</div>'

@@ -118,11 +118,13 @@ def get_headline_insights(selected_date):
             conn, params=[selected_date]
         )
 
-    insights = {"biggest_riser": None, "dominant_cluster": None, "both_charts_count": None}
+    insights = {"biggest_riser": None, "dominant_cluster": None, "both_charts_count": None,
+                "riser_status": "no_prior"}  # no_prior | no_climbers | ok
 
     # --- Biggest riser: compare today's ranks to the most recent prior date ---
     if len(dates_df) == 2:
         prev_date = dates_df["snapshot_date"].iloc[1]
+        insights["riser_status"] = "no_climbers"  # until we find a song that actually moved up
         with db.get_connection() as conn:
             today_ranks = pd.read_sql_query(
                 "SELECT track_id, MIN(rank) as rank FROM snapshots WHERE snapshot_date = ? GROUP BY track_id",
@@ -143,6 +145,7 @@ def get_headline_insights(selected_date):
                         conn, params=[int(best["track_id"])]
                     )
                 if not track_info.empty:
+                    insights["riser_status"] = "ok"
                     insights["biggest_riser"] = {
                         "artist": track_info["artist"].iloc[0],
                         "title": track_info["title"].iloc[0],
