@@ -60,14 +60,14 @@ header[data-testid="stHeader"] { background: transparent; }
 @media (max-width: 800px) { .mp-grid { grid-template-columns: 1fr; } }
 
 .mp-hero {
-  background: linear-gradient(155deg, #1f8f4a 0%, #14532d 48%, #181818 100%);
+  background: linear-gradient(155deg, #9ad8fb 0%, #55aeee 55%, #2f80d0 100%);
   border-radius: 16px; padding: 28px 30px; min-height: 230px;
   display: flex; flex-direction: column; justify-content: flex-end;
 }
-.mp-hero .kicker { font-size: 0.95rem; font-weight: 600; color: #e8f5ec; margin-bottom: 6px; }
-.mp-hero .big { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.08; color: #fff; }
-.mp-hero .by { font-size: 1.1rem; color: #e8f5ec; margin-top: 4px; }
-.mp-hero .move { margin-top: 18px; font-size: 1.15rem; font-weight: 700; color: #fff; }
+.mp-hero .kicker { font-size: 0.95rem; font-weight: 600; color: #0b2a45; margin-bottom: 6px; }
+.mp-hero .big { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.08; color: #051726; }
+.mp-hero .by { font-size: 1.1rem; color: #0b2a45; margin-top: 4px; }
+.mp-hero .move { margin-top: 18px; font-size: 1.15rem; font-weight: 700; color: #051726; }
 .mp-hero .move em { font-style: normal; opacity: .75; font-weight: 600; margin: 0 8px; }
 
 .mp-tile { background: var(--card); border-radius: 16px; padding: 20px 22px;
