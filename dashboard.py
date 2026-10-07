@@ -2,7 +2,7 @@
 Music Pulse dashboard -- Streamlit UI.
 
 Reads directly from music_pulse.db, so every page load/refresh shows
-whatever ingest.py's daily cron run last wrote. This is a daily-updating
+whatever the daily GitHub Actions run last wrote. This is a daily-updating
 dashboard, not a live-streaming one -- see README for that distinction.
 
 Run with:
@@ -404,8 +404,8 @@ def stage(name, tools, lead, bullets):
 
 METHOD_STAGES = [
     stage(
-        "1. Collection", "Last.fm API, requests, cron",
-        "A daily scheduled job pulls the top 50 songs from Last.fm's global and US charts.",
+        "1. Collection", "Last.fm API, requests, GitHub Actions",
+        "A scheduled cloud job runs every morning and pulls the top 50 songs from Last.fm's global and US charts.",
         [
             "Each song's rank, playcount and listeners are saved as a daily snapshot: about 100 entries a day across roughly 60 distinct songs.",
             "The API key stays in an environment variable, and requests use timeouts and rate limiting so failures are loud, not silent.",
@@ -452,7 +452,7 @@ METHOD_STAGES = [
         "6. Dashboard", "Streamlit, Altair",
         "The app reads the database directly, so each daily run shows up on the next page load.",
         [
-            "Model scores come from a saved model that is retrained by hand, so they drift out of date until it is rerun.",
+            "The collection job saves the updated database back to the repo, which redeploys the app, and retrains the model every Sunday.",
         ],
     ),
 ]
@@ -466,7 +466,7 @@ st.markdown(
     f'<div class="mp-stat"><div class="n">{stats["total_unique_tracks"]:,}</div><div class="l">different songs tracked</div></div>'
     f'<div class="mp-stat"><div class="n">{stats["total_snapshots"]:,}</div><div class="l">daily chart entries saved</div></div>'
     '</div>'
-    '<div class="mp-flow"><span>Last.fm API</span><i>›</i><span>Python and cron</span><i>›</i>'
+    '<div class="mp-flow"><span>Last.fm API</span><i>›</i><span>Python and GitHub Actions</span><i>›</i>'
     '<span>SQLite</span><i>›</i><span>scikit-learn, LightGBM</span><i>›</i><span>Streamlit</span></div>'
     + "".join(METHOD_STAGES),
     unsafe_allow_html=True,

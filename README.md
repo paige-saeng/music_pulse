@@ -2,13 +2,13 @@
 
 A daily-updating pipeline and dashboard that tracks what's trending on Last.fm, groups tracks into data-driven genre clusters, and predicts which tracks currently *outside* the top 20 are most likely to break into it within 5 days.
 
-**Stack:** Python · SQLite · pandas · scikit-learn · LightGBM · Streamlit · Altair · cron
+**Stack:** Python · SQLite · pandas · scikit-learn · LightGBM · Streamlit · Altair · GitHub Actions
 
 <!-- Add a dashboard screenshot here: ![dashboard](docs/dashboard.png) -->
 
 ## What it does
 
-1. **Ingests daily.** A cron job pulls the Last.fm global and US top-50 charts and stores rank, playcount, and listeners as one snapshot per track per day (`UNIQUE(track_id, snapshot_date, source)`).
+1. **Ingests daily.** A scheduled GitHub Actions job pulls the Last.fm global and US top-50 charts and stores rank, playcount, and listeners as one snapshot per track per day (`UNIQUE(track_id, snapshot_date, source)`).
 2. **Clusters by genre.** It fetches each track's user-applied tags, builds a vocabulary from the data itself, and runs k-means (k=4) to group tracks into genre clusters named after their top tags.
 3. **Predicts breakouts.** From the rank history it engineers velocity, acceleration, and volatility features and trains a model to answer: *will a track currently outside the top 20 reach it within 5 days?*
 4. **Shows it.** A Streamlit dashboard leads with the day's story (biggest riser, dominant sound, cross-chart overlap), then offers the chart, genre clusters, a per-track rank history, and the breakout candidates.
@@ -16,7 +16,7 @@ A daily-updating pipeline and dashboard that tracks what's trending on Last.fm, 
 ## Architecture
 
 ```
-Last.fm API ──cron (daily)──> ingest.py ──> SQLite (tracks, snapshots, tags, clusters)
+Last.fm API ──GitHub Actions (daily)──> ingest.py ──> SQLite (tracks, snapshots, tags, clusters)
                                                 │
                        breakout_features.py <───┤  gap-tolerant feature engineering
                                 │               │
@@ -48,15 +48,15 @@ This section shows how the project actually evolved, including what didn't work.
 - **Hand-picked mood vocabulary → data-driven genre vocabulary.** The first design matched tracks against a fixed list (`chill`, `energetic`, `sad`). On real data, only 1 of ~70 tags matched. Most tags were genres or one-person noise. The vocabulary is now built from the data: tags appearing on 2+ tracks, top 40.
 - **Choosing k = 4.** The elbow plot had no clear elbow, so I chose k for interpretability (each cluster reads as a recognizable genre group) rather than claiming the data dictated it.
 - **Label leakage, found and fixed.** The label is "reaches rank ≤ 20 within 5 days." For a track *already* in the top 20 that is trivially true, so half my training rows were free wins and the first model's AUC (0.92) was partly inflated. I noticed the dashboard listing top-20 tracks as "breakout candidates," first patched it at display level, then fixed the root cause: the model now trains and is evaluated only on rows that *start* outside the top 20.
-- **Gap-tolerant features.** The cron job only fires when my laptop is awake, so some days are missing. Feature lookups use the closest available day (±1 day tolerance) instead of assuming a perfect daily series, and rows with missing history keep NaN rather than being dropped.
+- **Gap-tolerant features.** Collection originally ran from cron on my laptop, which only fires when it is awake, so some early days are missing (it now runs in GitHub Actions). Feature lookups use the closest available day (±1 day tolerance) instead of assuming a perfect daily series, and rows with missing history keep NaN rather than being dropped.
 - **Probabilities → High / Medium / Low.** Scores like 99% implied more precision than ~300 training rows can support, so the dashboard shows a coarse signal plus a caveat.
 
 ## Known limitations
 
 - **Small data.** ~300 usable training rows, 12 test positives. The model is likely overconfident, especially for tracks with short chart histories (a track with 8 days on chart and falling can still score high).
 - **Rank features only.** The model sees rank movement, not tags or cluster membership yet. Adding genre cluster as a feature is the obvious next step.
-- **No automatic retraining.** The model is trained manually with `python train_breakout_model.py`; the dashboard scores with whatever model file exists.
-- **Daily, not real-time.** The dashboard reads the SQLite database, so it updates once a day when the cron job runs.
+- **Simple retraining.** The model is retrained every Sunday by the same workflow. There is no performance tracking over time yet, so I can't yet show whether retraining helps.
+- **Daily, not real-time.** The dashboard reads the SQLite database, so it updates once a day when the scheduled job commits new data.
 - **Vocabulary noise.** The 2+ tracks filter isn't perfect; a noisy tag can occasionally slip into the vocabulary.
 
 ## Setup
@@ -82,11 +82,10 @@ python train_breakout_model.py   # evaluate and save breakout_model.joblib
 streamlit run dashboard.py       # open the dashboard
 ```
 
-To run ingestion daily, add a cron entry (the laptop must be awake at that time):
+## Deployment
 
-```
-0 12 * * * cd /path/to/music_pulse && LASTFM_API_KEY=... /path/to/env/bin/python ingest.py >> ingest_log.txt 2>&1
-```
+- **Collection:** `.github/workflows/daily_ingest.yml` runs every morning, executes `ingest.py`, retrains the model on Sundays, and commits the updated `music_pulse.db` and `breakout_model.joblib` back to the repo. The Last.fm key is stored as the GitHub secret `LASTFM_API_KEY`.
+- **Hosting:** the dashboard is deployed on Streamlit Community Cloud from this repo and redeploys whenever the workflow commits new data.
 
 ## Files
 
@@ -104,6 +103,6 @@ To run ingestion daily, add a cron entry (the laptop must be awake at that time)
 ## Next steps
 
 - Add genre cluster and tag features to the breakout model
-- Weekly scheduled retraining and tracking of model performance over time
+- Track model performance over time across the weekly retrains
 - Host the dashboard (needs a sample or hosted database, since `music_pulse.db` is gitignored)
 - Revisit the model once there are several months of data

@@ -1,0 +1,64 @@
+name: Daily data update
+
+on:
+  schedule:
+    - cron: "15 13 * * *"      # 13:15 UTC = 6:15am Pacific, every day
+  workflow_dispatch:           # lets you run it by hand from the Actions tab
+    inputs:
+      retrain:
+        description: "Also retrain the breakout model"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write              # needed to save the updated database back to the repo
+
+concurrency:
+  group: daily-data-update     # never run two updates at once
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Collect today's charts, tags and genre groups
+        env:
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+        run: python ingest.py
+
+      # Retrain every Sunday (or on demand). A failure here must not lose
+      # today's data, so it is allowed to fail without failing the job.
+      - name: Retrain breakout model (Sundays or manual)
+        continue-on-error: true
+        env:
+          RETRAIN_INPUT: ${{ github.event.inputs.retrain }}
+        run: |
+          if [ "$(date -u +%u)" = "7" ] || [ "$RETRAIN_INPUT" = "true" ]; then
+            python breakout_features.py
+            python train_breakout_model.py
+          else
+            echo "Not a retrain day, skipping."
+          fi
+
+      - name: Save updated data and model to the repo
+        run: |
+          git config user.name "music-pulse-bot"
+          git config user.email "music-pulse-bot@users.noreply.github.com"
+          git add music_pulse.db breakout_model.joblib
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+          else
+            git commit -m "Daily data update $(date -u +%F)"
+            git push
+          fi

@@ -1,4 +1,3 @@
-music_pulse.db
 __pycache__/
 *.pyc
 venv/
@@ -9,4 +8,7 @@ venv/
 .agents/
 .claude/
 ingest_log.txt
-breakout_model.joblib
+__pycache__/
+*.pyc
+venv/
+.venv*/
