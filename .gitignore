@@ -2,6 +2,7 @@ music_pulse.db
 __pycache__/
 *.pyc
 venv/
+.venv/
 .env
 .codex/
 .DS_Store
