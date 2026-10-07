@@ -253,7 +253,7 @@ st.markdown(
 # ---------------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------------
-tab1, tab2, tab3, tab4 = st.tabs(["Trending", "Genres", "Track history", "Breakout watch"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Trending", "Genres", "Track history", "Breakout watch", "Methodology"])
 
 # --- Tab 1: today's chart as a track list ---
 with tab1:
@@ -397,7 +397,7 @@ with tab4:
 
 
 # ---------------------------------------------------------------------------
-# Methodology: sits below the tabs, since most visitors want the music first
+# Methodology: its own tab, so the music comes first and the details are one click away
 # ---------------------------------------------------------------------------
 def stage(name, tools, lead, bullets):
     items = "".join(f"<li>{b}</li>" for b in bullets)
@@ -463,17 +463,17 @@ METHOD_STAGES = [
     ),
 ]
 
-st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-st.markdown(
-    '<div class="mp-h2">Methodology</div>'
-    '<p class="mp-intro">How the data is collected, stored, grouped and modeled, built on the Last.fm API.</p>'
-    '<div class="mp-stats">'
-    f'<div class="mp-stat"><div class="n">{stats["total_days"]:,}</div><div class="l">days of data collected</div></div>'
-    f'<div class="mp-stat"><div class="n">{stats["total_unique_tracks"]:,}</div><div class="l">different songs tracked</div></div>'
-    f'<div class="mp-stat"><div class="n">{stats["total_snapshots"]:,}</div><div class="l">daily chart entries saved</div></div>'
-    '</div>'
-    '<div class="mp-flow"><span>Last.fm API</span><i>›</i><span>Python and GitHub Actions</span><i>›</i>'
-    '<span>SQLite</span><i>›</i><span>scikit-learn, LightGBM</span><i>›</i><span>Streamlit</span></div>'
-    + "".join(METHOD_STAGES),
-    unsafe_allow_html=True,
-)
+with tab5:
+    st.markdown(
+        '<div class="mp-h2" style="margin-top:0">Methodology</div>'
+        '<p class="mp-intro">How the data is collected, stored, grouped and modeled, built on the Last.fm API.</p>'
+        '<div class="mp-stats">'
+        f'<div class="mp-stat"><div class="n">{stats["total_days"]:,}</div><div class="l">days of data collected</div></div>'
+        f'<div class="mp-stat"><div class="n">{stats["total_unique_tracks"]:,}</div><div class="l">different songs tracked</div></div>'
+        f'<div class="mp-stat"><div class="n">{stats["total_snapshots"]:,}</div><div class="l">daily chart entries saved</div></div>'
+        '</div>'
+        '<div class="mp-flow"><span>Last.fm API</span><i>›</i><span>Python and GitHub Actions</span><i>›</i>'
+        '<span>SQLite</span><i>›</i><span>scikit-learn, LightGBM</span><i>›</i><span>Streamlit</span></div>'
+        + "".join(METHOD_STAGES),
+        unsafe_allow_html=True,
+    )
