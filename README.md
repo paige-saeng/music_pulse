@@ -1,6 +1,6 @@
 # 🎵 Music Pulse: Trending-Music Analytics Pipeline & Dashboard
 
-A daily-updating pipeline and dashboard that tracks what's trending on Last.fm, groups tracks into data-driven genre clusters, and predicts which tracks currently *outside* the top 20 are most likely to break into it within 5 days.
+A daily pipeline that pulls Last.fm's trending charts, groups songs into data-driven genre clusters from listener tags, and predicts which tracks outside the top 20 are likely to break into it within five days. It runs automatically on GitHub Actions, stores a growing history in SQLite, and is served as a live Streamlit dashboard. The dataset grows daily, and the model retrains weekly as it does.
 
 **Stack:** Python · SQLite · pandas · scikit-learn · LightGBM · Streamlit · Altair · GitHub Actions
 

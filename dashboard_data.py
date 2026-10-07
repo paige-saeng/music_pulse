@@ -68,6 +68,34 @@ def get_cluster_summary_for_date(run_date):
     return summary, df
 
 
+def list_artists():
+    """All artists with at least one chart snapshot, A-Z (case-insensitive),
+    so the track-history picker can show a list instead of requiring an
+    exact typed name (accents like the e-acute in ADELA included)."""
+    query = """
+        SELECT DISTINCT t.artist
+        FROM tracks t
+        JOIN snapshots s ON s.track_id = t.track_id
+        ORDER BY t.artist COLLATE NOCASE
+    """
+    with db.get_connection() as conn:
+        df = pd.read_sql_query(query, conn)
+    return df["artist"].tolist()
+
+
+def list_tracks_for_artist(artist):
+    """Charted tracks for one artist, for the second dropdown."""
+    query = """
+        SELECT DISTINCT t.track_id, t.artist, t.title
+        FROM tracks t
+        JOIN snapshots s ON s.track_id = t.track_id
+        WHERE t.artist = ?
+        ORDER BY t.title COLLATE NOCASE
+    """
+    with db.get_connection() as conn:
+        return pd.read_sql_query(query, conn, params=[artist])
+
+
 def search_tracks(query_text, limit=20):
     """Search tracks by artist or title substring, for a track-picker UI."""
     like_pattern = f"%{query_text}%"

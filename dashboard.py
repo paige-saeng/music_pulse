@@ -317,38 +317,38 @@ with tab2:
 
 # --- Tab 3: individual track history ---
 with tab3:
-    search_query = st.text_input("Search for a track by artist or title")
-    if search_query:
-        results = dd.search_tracks(search_query)
-        if results.empty:
-            st.info("No matching tracks found.")
-        else:
-            results["label"] = results["artist"] + " — " + results["title"]
-            choice = st.selectbox("Select a track", results["label"])
-            chosen_id = results[results["label"] == choice]["track_id"].iloc[0]
-
-            history = dd.get_track_history(chosen_id)
-            if history.empty:
-                st.info("No history found for this track.")
-            else:
-                history = history.copy()
-                history["Chart"] = history["source"].map(SOURCE_LABELS).fillna(history["source"])
-                chart = alt.Chart(history).mark_line(point=alt.OverlayMarkDef(size=60, filled=True), strokeWidth=2).encode(
-                    x=alt.X("snapshot_date:T", title=None),
-                    y=alt.Y("rank:Q", title="Rank (1 is the top)", scale=alt.Scale(reverse=True)),
-                    color=alt.Color(
-                        "Chart:N", title=None,
-                        scale=alt.Scale(domain=["Global", "US"], range=[GREEN, BLUE]),
-                    ),
-                    strokeDash=alt.StrokeDash(
-                        "Chart:N", title=None,
-                        scale=alt.Scale(domain=["Global", "US"], range=[[1, 0], [6, 4]]),
-                    ),
-                    tooltip=["snapshot_date:T", "rank:Q", "Chart:N"],
-                ).properties(height=340)
-                st.altair_chart(style_chart(chart), width="stretch")
+    artists = dd.list_artists()
+    if not artists:
+        st.info("No tracks have been collected yet.")
     else:
-        st.caption("Search for a track above to see how its rank has moved day by day.")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            artist = st.selectbox("Artist", artists, help="Click and type to filter the list.")
+        tracks = dd.list_tracks_for_artist(artist)
+        with col_b:
+            choice = st.selectbox("Track", tracks["title"].tolist())
+        chosen_id = tracks[tracks["title"] == choice]["track_id"].iloc[0]
+
+        history = dd.get_track_history(chosen_id)
+        if history.empty:
+            st.info("No history found for this track.")
+        else:
+            history = history.copy()
+            history["Chart"] = history["source"].map(SOURCE_LABELS).fillna(history["source"])
+            chart = alt.Chart(history).mark_line(point=alt.OverlayMarkDef(size=60, filled=True), strokeWidth=2).encode(
+                x=alt.X("snapshot_date:T", title=None),
+                y=alt.Y("rank:Q", title="Rank (1 is the top)", scale=alt.Scale(reverse=True)),
+                color=alt.Color(
+                    "Chart:N", title=None,
+                    scale=alt.Scale(domain=["Global", "US"], range=[GREEN, BLUE]),
+                ),
+                strokeDash=alt.StrokeDash(
+                    "Chart:N", title=None,
+                    scale=alt.Scale(domain=["Global", "US"], range=[[1, 0], [6, 4]]),
+                ),
+                tooltip=["snapshot_date:T", "rank:Q", "Chart:N"],
+            ).properties(height=340)
+            st.altair_chart(style_chart(chart), width="stretch")
 
 # --- Tab 4: breakout predictions from the saved model ---
 with tab4:
