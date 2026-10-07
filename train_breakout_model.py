@@ -32,11 +32,21 @@ FEATURE_COLS = [
 ]
 TEST_FRACTION = 0.25  # most recent 25% of DATES (not rows) become the test set
 MODEL_PATH = "breakout_model.joblib"
+OUTSIDE_TOP_N = 20  # train/evaluate only on rows STARTING outside this rank -- see load_labeled_data
 
 
 def load_labeled_data(path="breakout_features.csv"):
     df = pd.read_csv(path, parse_dates=["as_of_date"])
-    return df.dropna(subset=["label"]).reset_index(drop=True)
+    df = df.dropna(subset=["label"])
+    # LABEL FIX: the label is "reaches rank <= 20 within 5 days". For a track
+    # already in the top 20 that is trivially true, so including those rows
+    # inflated AUC (the model just learned "low current_rank => 1"). The
+    # dashboard only surfaces tracks OUTSIDE the top 20, so the model must be
+    # trained and scored on exactly that population: rows that START outside it.
+    n_before = len(df)
+    df = df[df["current_rank"] > OUTSIDE_TOP_N]
+    print(f"Kept {len(df)} of {n_before} labeled rows starting outside the top {OUTSIDE_TOP_N}")
+    return df.reset_index(drop=True)
 
 
 def split_by_date(df, test_fraction=TEST_FRACTION):
@@ -100,8 +110,10 @@ def main():
     print("\n=== LightGBM feature importance ===")
     importance = pd.Series(lgbm.feature_importances_, index=FEATURE_COLS).sort_values(ascending=False)
     print(importance.to_string())
-    print("\nNote: current_rank dominating here is expected -- see EDA notebook, "
-          "it's mechanically the strongest signal (closer to top-20 already).")
+    print("\nNote: current_rank is still expected to matter (rank 25 is closer to the "
+          "top 20 than rank 48), but it is no longer a trivial leak now that rows "
+          "already inside the top 20 are excluded.")
+    print(f"Base rate of breakout in test set: {y_test.mean():.3f}")
 
     # --- Save a FINAL production model, refit on ALL labeled data ---
     # The date-split model above exists purely to give an honest, unbiased
