@@ -7,11 +7,10 @@ Run this once a day (cron, Task Scheduler, or a simple loop) to build up
 history for the breakout-prediction model down the line.
 
 Usage:
-    export LASTFM_API_KEY=94d7749a39b0002f0d7c887840801d3a
+    export LASTFM_API_KEY=your_key_here
     python ingest.py
 """
 
-from curses import echo
 import time
 from datetime import date
 
@@ -22,6 +21,10 @@ import clustering
 
 TRACK_LIMIT = 50           # how many trending tracks to pull per chart, per run
 RATE_LIMIT_DELAY = 0.25    # seconds between Last.fm calls, be a good API citizen
+
+# Songs with no Last.fm tags yet are kept as their own group (see below)
+UNTAGGED_CLUSTER_ID = 99
+UNTAGGED_LABEL = "No tags yet"
 
 # Charts to pull each run: (source label, fetch function)
 CHARTS = [
@@ -97,12 +100,18 @@ def run_ingestion():
 
         print(f"  -> clustered into {k} groups: {list(cluster_names.values())}")
 
+        # Songs Last.fm hasn't tagged yet (usually brand-new releases) have no
+        # rows in the tags table, so they never reach the feature matrix and
+        # would silently vanish from the genre view. Keep them visible as
+        # their own group instead of dropping them.
+        tagged = set(track_ids)
+        untagged = [tid for tid in track_id_map if tid not in tagged]
+        for tid in untagged:
+            db.insert_cluster_assignment(conn, tid, today, UNTAGGED_CLUSTER_ID, UNTAGGED_LABEL)
+        print(f"  -> {len(untagged)} tracks have no tags yet (kept as '{UNTAGGED_LABEL}')")
+
     print(f"[{today}] Done.")
 
 
 if __name__ == "__main__":
     run_ingestion()
-
-
-
-
