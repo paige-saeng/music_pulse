@@ -66,8 +66,8 @@ header[data-testid="stHeader"] { background: transparent; }
   border-radius: 16px; padding: 28px 30px; min-height: 230px;
   display: flex; flex-direction: column; justify-content: flex-end; position: relative;
 }
-.mp-hero .pic { position: absolute; top: 24px; right: 26px; width: 120px; height: 120px; border-radius: 50%;
-  object-fit: cover; border: 3px solid rgba(255,255,255,.65); box-shadow: 0 6px 18px rgba(5,23,38,.25); }
+.mp-hero .pic { position: absolute; top: 24px; right: 26px; width: 120px; height: 120px; border-radius: 12px;
+  object-fit: cover; border: 2px solid rgba(255,255,255,.6); box-shadow: 0 6px 18px rgba(5,23,38,.25); }
 @media (max-width: 800px) { .mp-hero .pic { width: 84px; height: 84px; top: 18px; right: 18px; } }
 .mp-hero .kicker { font-size: 0.95rem; font-weight: 600; color: #0b2a45; margin-bottom: 6px; }
 .mp-hero .big { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.08; color: #051726; }
@@ -182,14 +182,44 @@ def _norm_name(name):
 
 
 @st.cache_data(ttl=60 * 60 * 24 * 7, show_spinner=False)
+def get_cover_art(artist, title):
+    """Album cover URL for one song, from Deezer's free public search API.
+
+    Last.fm no longer serves real images through its API, so covers come
+    from Deezer. A result is accepted only if its artist name matches
+    (ignoring accents and case) AND its title matches the song, so a lookup
+    can never attach another artist's or another song's cover. Any network
+    problem returns None and the dashboard simply shows no picture.
+    """
+    try:
+        resp = requests.get("https://api.deezer.com/search/track",
+                            params={"q": f'artist:"{artist}" track:"{title}"', "limit": 10}, timeout=5)
+        resp.raise_for_status()
+        want_artist, want_title = _norm_name(artist), _norm_name(title)
+        partial = None
+        for hit in resp.json().get("data", []):
+            if _norm_name(hit.get("artist", {}).get("name")) != want_artist:
+                continue
+            hit_title = _norm_name(hit.get("title"))
+            cover = hit.get("album", {}).get("cover_big") or hit.get("album", {}).get("cover_medium")
+            if not cover:
+                continue
+            if hit_title == want_title:
+                return cover
+            if partial is None and want_title and want_title in hit_title:
+                partial = cover
+        return partial
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=60 * 60 * 24 * 7, show_spinner=False)
 def get_artist_image(artist):
     """Artist photo URL from Deezer's free public search API, or None.
 
-    Last.fm stopped serving real artist photos in 2019 (its API returns a
-    grey placeholder), so images come from Deezer instead. We only accept a
-    result whose name matches the artist after stripping accents and case,
-    so a lookup can never attach the wrong person's photo. Any network
-    problem returns None and the dashboard simply shows no picture.
+    Only accepts a result whose name matches the artist after stripping
+    accents and case, so it can never attach the wrong person's photo.
+    Any network problem returns None and no picture is shown.
     """
     try:
         resp = requests.get("https://api.deezer.com/search/artist",
@@ -201,7 +231,6 @@ def get_artist_image(artist):
     except Exception:
         return None
     return None
-
 
 
 def style_chart(chart):
@@ -243,7 +272,7 @@ cluster = insights["dominant_cluster"]
 overlap = insights["both_charts_count"]
 
 if riser:
-    riser_img = get_artist_image(riser["artist"])
+    riser_img = get_cover_art(riser["artist"], riser["title"])
     pic_html = f'<img class="pic" src="{escape(riser_img, quote=True)}" alt="">' if riser_img else ""
     hero = (
         '<div class="mp-hero">'
